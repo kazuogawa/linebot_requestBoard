@@ -1,0 +1,162 @@
+@* 1ページだけなので、素のHtmlでコーディング。必要になり次第、headerやfooterなどをテンプレート分け *@
+@(message: String)
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="./assets/stylesheets/howto.css">
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css" integrity="sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ" crossorigin="anonymous">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="page-header mb-3">
+            <h1>haijimaお願い掲示板の使い方！</h1>
+            <time class="lead">更新日：2017年3月31日</time>
+        </div>
+        <div class="foreword">
+            <p>ソーシャルレジデンス福生拝島に住んでいる人<span class="text-danger">限定</span>で利用できるお願い掲示板の使い方について紹介します。</p>
+            <h2>用途</h2>
+            <ul>
+                <li>まだシェアハウスに入ったばっかり。一緒にご飯食べる人が欲しい・・・！</li>
+                <li>料理の際に調味料を部屋に忘れちゃった・・・<br>取りに行くのは面倒だし、ちょこっと借りたい・・・！</li>
+                <li>お世話になっているあの人の頼みごとを解決してあげたい・・・！</li>
+            </ul>
+        </div>
+        <div class="table-of-contents">
+            <h2>目次</h2>
+            <ul>
+                <li><a href="#what-is">haijimaお願い掲示板とは？</a></li>
+                <li><a href="#friend-add">友達登録の方法</a></li>
+                <li><a href="#order-add">お願い投稿の方法</a></li>
+                <li><a href="#order-complete">ほかの人のお願いを完了する方法</a></li>
+            </ul>
+        </div>
+        <div id="what-is">
+            <h2>haijimaお願い掲示板とは？</h2>
+            <h3>シェアハウスの友人にお願い事を気軽に頼めたり、友人のお願いを解決できるLineBotです。</h3>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto1.png" alt="haijimaお願い掲示板に投稿を行っている写真1"></div>
+                <div class="col-7"><p>ご飯を一緒に食べてくれる人を探す！</p></div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto2.png" alt="haijimaお願い掲示板に投稿を行っている写真2"></div>
+                <div class="col-7"><p>ちょっとした頼み事をお願い！</p></div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto3.png" alt="haijimaお願い掲示板のお願いを解決する前の写真"></div>
+                <div class="col-7"><p>困っている友人がいたら</p></div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto4.png" alt="haijimaお願い掲示板のお願いを解決した後の写真"></div>
+                <div class="col-7"><p>完了ボタンを押して、助けてあげよう！</p></div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto5.png" alt="haijimaお願い掲示板から通知が来ている写真"></div>
+                <div class="col-7"><p>お願いを行っていた人には、このように通知が来ます。</p></div>
+            </div>
+        </div>
+        <div id="friend-add">
+            <h2>友達登録の方法</h2>
+            <h3>haijimaお願い掲示板を利用するには、友達登録を行う必要があります。</h3>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto6.png" alt="haijimaお願い掲示板を友達登録する前の写真"></div>
+                <div class="col-7">
+                    <p>下記のQRコードをLineで読み取るか、友達追加ボタンを押すことで友達登録を行うことができます！</p>
+                    <img class="qr" src="http://qr-official.line.me/L/5B14kr1gUl.png">
+                    <a href="https://line.me/R/ti/p/%40kbj3258f"><img height="36" border="0" alt="友だち追加" src="https://scdn.line-apps.com/n/line_add_friends/btn/ja.png"></a>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto7.png" alt="haijimaお願い掲示板を友達登録した後の写真"></div>
+                <div class="col-7"><p>メッセージが届くと、友達登録が完了です！</p></div>
+            </div>
+        </div>
+        <div id="order-add">
+            <h2>お願い投稿をしてみよう！</h2>
+            <h3>左下のキーボードボタンを押して、キーボードを表示しよう！</h3>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto8.png" alt="お願いを投稿する手順の写真1"></div>
+                <div class="col-7"><p>キーボードボタンは赤枠の部分です。</p></div>
+            </div>
+            <h3>キーボードを操作してお願いを送信しよう！</h3>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto9.png" alt="お願いを投稿する手順の写真2"></div>
+                <div class="col-7">
+                    <p>例：</p>
+                    <p>今からチキン南蛮を作ろうと思ったのに、部屋の冷蔵庫にマヨネーズを忘れてしまった。。</p>
+                    <p>そんな時は、このように投稿をしよう！</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto10.png" alt="お願い投稿を通知する前の写真"></div>
+                <div class="col-7">
+                    <p>投稿すると、お願いが登録されます。</p>
+                    <p>急ぎで解決したい場合は、通知ボタンを押して、haijimaお願い掲示板と友達になっている全員に通知しましょう。</p>
+                    <p>赤丸で囲っている「通知する」ボタンを選択します。</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto11.png" alt="お願い投稿が通知完了した写真"></div>
+                <div class="col-7">
+                    <p>このメッセージが表示されると通知は完了です！</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto12.png" alt="お願い投稿の通知が届いた写真"></div>
+                <div class="col-7">
+                    <p>このように通知されます。</p>
+                </div>
+            </div>
+        </div>
+        <div id="order-complete">
+            <h2>ほかの人のお願いを完了する方法</h2>
+            <h3>お願い一覧を確認しよう</h3>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto13.png" alt="お願いの一覧確認の写真"></div>
+                <div class="col-7">
+                    <p>自分のお願いをかなえてもらうだけでなく、他の人のお願いもかなえてあげることで、仲良くなりましょう。</p>
+                    <p>まず、一覧ボタンを表示させるために「チェック」を選びましょう。</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto14.png" alt="チェックを開いた写真"></div>
+                <div class="col-7">
+                    <p>一覧ボタンが表示されました！</p>
+                    <p>次に一覧ボタンを選択しましょう。</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto15.png" alt="お願い一覧が表示されている写真"></div>
+                <div class="col-7">
+                    <p>お願いの一覧が表示されました！</p>
+                </div>
+            </div>
+            <h2>お願いを完了させよう</h2>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto16.png" alt="お願いを完了する前の写真"></div>
+                <div class="col-7">
+                    <p>おや？？裁縫セットを借りたい人がいますね。</p>
+                    <p>ちょうど手元に裁縫セットがあり、このお願いを達成させたい場合は、赤枠の「完了」ボタンを選択します。</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto17.png" alt="お願いを完了した後の写真"></div>
+                <div class="col-7">
+                    <p>完了ボタンを押すとこのように完了メッセージが届きます。</p>
+                    <p>お願いをした人に裁縫セットを届けてあげましょう。</p>
+                </div>
+            </div>
+            <div class="row mb-5">
+                <div class="col-5"><img src="./assets/images/howto/howto18.png" alt="お願いの完了通知が届いた写真"></div>
+                <div class="col-7">
+                    <p>お願いをしていた人には、このように完了メッセージが届きます。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js" integrity="sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js" integrity="sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn" crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+html body{
+  font-family: 'Lucida Grande', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+}
+body h1{
+  font-weight:bold;
+}
+@media screen and (max-width: 1080px) {
+    html{
+        font-size:1.5rem;
+    }
+    div.container{
+      width:100%;
+    }
+}
+time.lead{
+  font-size:100%;
+  color: #777;
+}
+
+body .container h2{
+  font-size:1.3rem;
+  font-weight:bold;
+  border-bottom: 2px solid #EBEBEB;
+  padding-bottom:5px;
+  margin-bottom: 1rem;
+}
+
+body .container h3{
+  font-size:1.2rem;
+  font-weight:bold;
+  margin-bottom: 1rem;
+}
+.qr{
+  max-width: 250px;
+}

@@ -1,0 +1,12 @@
+logs
+target
+conf/application.conf
+public/images
+/.idea
+/.idea_modules
+/.classpath
+/.project
+/.settings
+/.log
+/RUNNING_PID
+project/project/
