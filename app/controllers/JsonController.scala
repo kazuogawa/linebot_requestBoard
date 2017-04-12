@@ -43,25 +43,25 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
 
   implicit val l_SourceReads: Reads[l_Source] = (
     (__ \ "type").read[String] and
-      (__ \ "userId").read[String]
-    )(l_Source.apply _)
+    (__ \ "userId").read[String]
+  )(l_Source.apply _)
 
   implicit val MessageReads: Reads[Message] = (
     (__ \ "id").read[String] and
-      (__ \ "type").read[String] and
-      (__ \ "text").read[String]
-    )(Message.apply _)
+    (__ \ "type").read[String] and
+    (__ \ "text").read[String]
+  )(Message.apply _)
 
   implicit val EventReads: Reads[Events] = (
     (__ \ "replyToken").read[String] and
-      (__ \ "type").read[String] and
-      (__ \ "timestamp").read[Double] and
-      (__ \ "source").read[l_Source] and
-      //postbackの際にmessageがない状態で届くので、空を追加
-      (__ \ "message").read[Message] | Reads.pure(Message("","","")) and
-      //messageの際にpostbackがない状態で届くので、空を追加
-      (__ \ "postback").read[Data] | Reads.pure(Data(""))
-    )(Events.apply _)
+    (__ \ "type").read[String] and
+    (__ \ "timestamp").read[Double] and
+    (__ \ "source").read[l_Source] and
+    //postbackの際にmessageがない状態で届くので、空を追加
+    (__ \ "message").read[Message] | Reads.pure(Message("","","")) and
+    //messageの際にpostbackがない状態で届くので、空を追加
+    (__ \ "postback").read[Data] | Reads.pure(Data(""))
+  )(Events.apply _)
 
   //postやgetを行った際に、jsonのresponceを処理する際に必要
   implicit val context = play.api.libs.concurrent.Execution.Implicits.defaultContext
