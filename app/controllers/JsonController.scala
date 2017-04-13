@@ -110,7 +110,8 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
 
   //messageの内容によってjsonの処理を変え、返信する
   def replyMessage(event:Events) ={
-    val json = event.message.text match {
+    val json = if(event.message.text == "")  returnSimpleJson(event, "お願いはテキストで記述してください。")
+    else event.message.text match {
       case "#使い方" => help(event)
       case "#一覧" => showOrder(event)
       case "#通知する" => pushNotification(event)
