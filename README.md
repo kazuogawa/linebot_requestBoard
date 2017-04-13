@@ -1,6 +1,7 @@
-# haijima���肢�f����
+# haijimaお願い掲示板
 
-�V�F�A�n�E�X���ŗ��p�\�ȋC�y�ɂ��肢�𓊍e�ł���Linebot�ł��B
+気軽にお願いを投稿できるLinebotです。
+シェアハウス内で利用しています。
 
-�g�����͉��L
+使い方は下記
 https://enigmatic-falls-51930.herokuapp.com/howto.html
