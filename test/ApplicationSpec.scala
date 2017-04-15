@@ -20,5 +20,4 @@ class ApplicationSpec extends PlaySpec with OneAppPerTest {
       route(app, FakeRequest(GET, "json")).map(status) mustBe Some(NOT_FOUND)
     }
   }
-  
 }
