@@ -1,5 +1,4 @@
-@* 1ページだけなので、素のHtmlでコーディング。必要になり次第、headerやfooterなどをテンプレート分け *@
-@(message: String)
+@(message: String, LINE_QR_PNG_URL: String, LINE_FRIND_LINK_URL: String)
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -63,8 +62,8 @@
                 <div class="col-5"><img src="./assets/images/howto/howto6.png" alt="haijimaお願い掲示板を友達登録する前の写真"></div>
                 <div class="col-7">
                     <p>下記のQRコードをLineで読み取るか、友達追加ボタンを押すことで友達登録を行うことができます！</p>
-                    <img class="qr" src="http://qr-official.line.me/L/5B14kr1gUl.png">
-                    <a href="https://line.me/R/ti/p/%40kbj3258f"><img height="36" border="0" alt="友だち追加" src="https://scdn.line-apps.com/n/line_add_friends/btn/ja.png"></a>
+                    <img class="qr" src="@LINE_QR_PNG_URL">
+                    <a href="@LINE_FRIND_LINK_URL"><img height="36" border="0" alt="友だち追加" src="https://scdn.line-apps.com/n/line_add_friends/btn/ja.png"></a>
                 </div>
             </div>
             <div class="row mb-5">
