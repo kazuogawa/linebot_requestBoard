@@ -1,6 +1,6 @@
 logs
 target
-conf/application.conf
+/.conf
 public/images
 /.idea
 /.idea_modules
@@ -10,3 +10,6 @@ public/images
 /.log
 /RUNNING_PID
 project/project/
+app/assets/
+conf/application.conf
+conf/test.conf

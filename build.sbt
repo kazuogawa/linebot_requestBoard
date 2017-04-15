@@ -20,3 +20,5 @@ libraryDependencies ++= Seq(
 
 includeFilter in (Assets, LessKeys.less) := "*.less"
 excludeFilter in (Assets, LessKeys.less) := "_*.less"
+
+javaOptions in Test += "-Dconfig.file=conf/test.conf"
