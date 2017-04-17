@@ -15,7 +15,11 @@ libraryDependencies ++= Seq(
   //"com.linecorp.bot" % "line-bot-api-client" % "1.6.0",
   "mysql" % "mysql-connector-java" % "5.1.40",
   "joda-time" % "joda-time" % "2.9.2",
-  "org.joda" % "joda-convert" % "1.8" // http://www.joda.org/joda-convert/
+  "org.joda" % "joda-convert" % "1.8",
+  "com.h2database"  %  "h2"                                % "1.4.193",
+  "org.scalikejdbc" %% "scalikejdbc"                     % "2.5.1",
+  "org.scalikejdbc" %% "scalikejdbc-config"             % "2.5.1",
+  "org.scalikejdbc" %% "scalikejdbc-play-initializer" % "2.5.1"
 )
 
 includeFilter in (Assets, LessKeys.less) := "*.less"

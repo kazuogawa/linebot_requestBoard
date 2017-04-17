@@ -3,6 +3,7 @@ package controllers
 import com.typesafe.config.ConfigFactory
 import java.sql.ResultSet
 import javax.inject.Inject
+
 import models._
 import org.joda.time.DateTime
 import play.api.mvc._
@@ -10,10 +11,16 @@ import play.api.db._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 import play.api.libs.ws._
+import scalikejdbc.{TxBoundary, _}
+import views.html.users.list
+
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 
+
 class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
+  //scalikejdbcを使うのに必要
+  implicit val session = AutoSession
 
   val accessToken = ConfigFactory.load.getString("ACCESS_TOKEN")
 
@@ -263,7 +270,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
             Json.obj(
               "type" -> "text",
               "text" -> message
-            )
+          )
           )
         )
         //endflagを1に修正
@@ -414,8 +421,8 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     val conn = db.getConnection()
     try {
       val stmt = conn.createStatement();
-      //同じlineuser_idの場合は、addしない
-      if(nameEmpty(event.source.userId))
+      //lineuser_idがdb内にない場合は登録
+      if(!existLineuser_id(event.source.userId))
         stmt.executeUpdate("insert into users(name, lineuser_id) values ('" + getName(event.source.userId) + "', '" + event.source.userId + "')")
     }
     catch {
@@ -450,23 +457,12 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     Await.result(future_name, Duration.Inf)
   }
 
-  //名前がdbに登録されていない場合はtrueを返す処理
-  def nameEmpty(lineid:String): Boolean = {
-    val conn = db.getConnection()
-    val ans:Boolean = {
-      try {
-        val stmt = conn.createStatement()
-        val rs = stmt.executeQuery("select * from users where lineuser_id = '" + lineid + "'")
-        !rs.next
-      }
-      catch{
-        case e:Exception => throw new Exception("nameEmpty関数でエラー")
-      }
-      finally {
-        conn.close()
-      }
-    }
-    ans
+  //名前がdbに存在している場合はtrueを返す処理
+  def existLineuser_id(lineuser_id:String): Boolean = {
+    val users = try {
+        sql"""select * from users where lineuser_id = ${lineuser_id}""".toMap.list.apply()
+      }catch {case e: Exception => throw new Exception("existLineuser_idでError")}
+    users != Nil
   }
 
   //お願いを登録するか確認
@@ -476,61 +472,51 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     addUser(event)
     //usersに登録したuser_idを取得
     val user_id = findUserId(event.source.userId)
-    //お願い登録
-    val conn = db.getConnection()
+    val ordermessage = event.message.text
     try {
-      val stmt = conn.createStatement()
-      val sql: String = "insert into orders(user_id, contents, created, endflag) values (" + user_id +
-                         ", '" + event.message.text + "', '" + now.toString("yyyy/MM/dd HH:mm:ss") + "', 0)"
-      val rs = stmt.executeUpdate(sql)
-    }catch {
-      case e:Exception => println("addOrder関数のエラー")
-    }
-    finally {
-      conn.close()
-    }
-    val jsonMessages:JsValue =
-      if(event.message.text != null){
-        Json.arr(
-          Json.obj(
-            "type" -> "text",
-            "text" -> ("「" + event.message.text + "」を登録しました")
-          ),
-          Json.obj(
-            "type" -> "template",
-            "altText" -> ("「" + event.message.text + "」を通知するか選択"),
-            "template"-> Json.obj(
-              "type"-> "confirm",
-              "text"-> "利用者にプッシュ通知を送りますか？",
-              "actions"-> Json.arr(
-                Json.obj(
-                  //後でpostbackにする予定
-                  "type"-> "message",
-                  "label"-> "通知する",
-                  "text"-> "#通知する"
-                ),
-                Json.obj(
-                  "type"-> "message",
-                  "label"-> "通知しない",
-                  "text"-> "#通知しない"
+      sql"""insert into orders(user_id, contents, created, endflag) values (${user_id}, ${ordermessage}, CURRENT_TIMESTAMP(), 0)""".execute.apply()
+      val jsonMessages:JsValue =
+        if(ordermessage != null){
+          Json.arr(
+            Json.obj(
+              "type" -> "text",
+              "text" -> ("「" + ordermessage + "」を登録しました")
+            ),
+            Json.obj(
+              "type" -> "template",
+              "altText" -> ("「" + ordermessage + "」を通知するか選択"),
+              "template"-> Json.obj(
+                "type"-> "confirm",
+                "text"-> "利用者にプッシュ通知を送りますか？",
+                "actions"-> Json.arr(
+                  Json.obj(
+                    //後でpostbackにする予定
+                    "type"-> "message",
+                    "label"-> "通知する",
+                    "text"-> "#通知する"
+                  ),
+                  Json.obj(
+                    "type"-> "message",
+                    "label"-> "通知しない",
+                    "text"-> "#通知しない"
+                  )
                 )
               )
             )
           )
-        )
-      }
-      else {
-        Json.arr(
-          Json.obj(
-            "type" -> "text",
-            "text" -> "システムエラーにより、登録できませんでした"
+        }
+        else {
+          Json.arr(
+            Json.obj(
+              "type" -> "text",
+              "text" -> "システムエラーにより、登録できませんでした"
+            )
           )
-        )
-      }
-
-    Json.obj(
-      "replyToken" -> event.replyToken,
-      "messages" -> jsonMessages
-    )
+        }
+      Json.obj(
+        "replyToken" -> event.replyToken,
+        "messages" -> jsonMessages
+      )
+    } catch {case e:Exception => returnSimpleJson(event,"お願い登録時にエラーが発生しました")}
   }
 }
