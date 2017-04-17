@@ -78,8 +78,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     val eventsResult = (request.body \ "events")(0).validate[Events]
     eventsResult.fold(
         errors => {
-          println("returnmessage関数でエラーです")
-          Ok("NG")
+          throw new Exception("returnmessage関数でエラーです")
         },
         event => {
           eventhandler(event)
@@ -90,7 +89,6 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
 
   //渡されたjsonをLineApiにpost
   def postLineApi(json: JsValue, url_kind: String): Unit ={
-    println("sendJson: " + json)
     val req = url_kind match {
       case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
       case "push" => ws.url("https://api.line.me/v2/bot/message/push")
@@ -100,9 +98,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       "Content-Type" -> "application/json",
       "Authorization" -> ("Bearer " + accessToken)
     )
-    headers.post(json).map{ responce =>
-      println("Reply responceBody: " + responce.body)
-    }
+    headers.post(json)
   }
 
   //イベントの内容によって処理を分割する
@@ -155,8 +151,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
           (rs.getString("contents"), rs.getInt("notificationFlag")) match {
             //お願いの内容がない場合は通知しない
             case (null, _) => {
-              println("pushNotification contents null Error")
-              "お願いの内容がありません。通知ができませんでした。"
+              throw new Exception("pushNotification contents null Error")
             }
             //お願いの内容があり、未通知の場合は、全員通知の処理を行う
             case (_, 0) => {
@@ -165,13 +160,11 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
                 val updateState = updateNotificationFlag(rs.getInt("id"))
                 if(updateState) "お願いの通知が完了しました。"
                 else {
-                  println("updateNotificationFlag Error")
-                  "システムエラーが発生しました。"
+                  throw new Exception("updateNotificationFlag Error")
                 }
               }
               else {
-                println("allPushNotification Error")
-                "システムエラーが発生しました。お願いの通知ができませんでした。"
+                throw new Exception("allPushNotification Error")
               }
             }
             //notificationFlagが1(通知済み)だったら、通知済みを伝える
@@ -233,7 +226,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       }
       comp = true
     }catch{
-      case e:Exception => println("allPushNotification関数のエラー")
+      case e:Exception => throw new Exception("allPushNotification関数のエラー")
     }
     finally {
       conn.close()
@@ -346,11 +339,9 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
           )
         )
       )
-      println(carousel)
 
     }while(rs.next)
     carousels :+= carousel
-    println("carousels: " + carousels)
     carousels
   }
 
