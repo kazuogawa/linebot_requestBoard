@@ -5,18 +5,17 @@ import java.sql.ResultSet
 import javax.inject.Inject
 
 import models._
+import models.db._
 import org.joda.time.DateTime
 import play.api.mvc._
 import play.api.db._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 import play.api.libs.ws._
-import scalikejdbc.{TxBoundary, _}
-import views.html.users.list
-
 import scala.concurrent._
 import scala.concurrent.duration.Duration
-
+import scalikejdbc.{TxBoundary, _}
+import views.html.users.list
 
 class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   //scalikejdbcを使うのに必要
@@ -28,7 +27,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
 
   implicit val l_SourceWrites: Writes[l_Source] = (
     (__ \ "type").write[String] and
-    (__ \ "userId").write[String]
+    (__ \ "lineuser_id").write[String]
   )(unlift(l_Source.unapply))
 
   implicit val MessageWrites: Writes[Message] = (
@@ -37,20 +36,20 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     (__ \ "text").write[String]
   )(unlift(Message.unapply))
 
-  implicit val EventWrites: Writes[Events] = (
+  implicit val EventWrites: Writes[Event] = (
     (__ \ "replyToken").write[String] and
     (__ \ "type").write[String] and
     (__ \ "timestamp").write[Double] and
     (__ \ "source").write[l_Source] and
     (__ \ "message").write[Message] and
     (__ \ "postback").write[Data]
-  )(unlift(Events.unapply))
+  )(unlift(Event.unapply))
 
   implicit val DataReads: Reads[Data] = Json.reads[Data]
 
   implicit val l_SourceReads: Reads[l_Source] = (
     (__ \ "type").read[String] and
-    (__ \ "userId").read[String]
+    (__ \ "lineuser_id").read[String]
   )(l_Source.apply _)
 
   implicit val MessageReads: Reads[Message] = (
@@ -59,7 +58,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     (__ \ "text").read[String]
   )(Message.apply _)
 
-  implicit val EventReads: Reads[Events] = (
+  implicit val EventReads: Reads[Event] = (
     (__ \ "replyToken").read[String] and
     (__ \ "type").read[String] and
     (__ \ "timestamp").read[Double] and
@@ -68,14 +67,14 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     (__ \ "message").read[Message] | Reads.pure(Message("","","")) and
     //messageの際にpostbackがない状態で届くので、空を追加
     (__ \ "postback").read[Data] | Reads.pure(Data(""))
-  )(Events.apply _)
+  )(Event.apply _)
 
   //postやgetを行った際に、jsonのresponceを処理する際に必要
   implicit val context = play.api.libs.concurrent.Execution.Implicits.defaultContext
 
   //LineのMessaging APIからJsonがわたってきた際に、中身を解析し、対応したJsonをLineサーバーに返す
   def json = Action(BodyParsers.parse.json) { implicit request =>
-    val eventsResult = (request.body \ "events")(0).validate[Events]
+    val eventsResult = (request.body \ "events")(0).validate[Event]
     eventsResult.fold(
         errors => {
           throw new Exception("returnmessage関数でエラーです")
@@ -87,44 +86,40 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     )
   }
 
-  //渡されたjsonをLineApiにpost
-  def postLineApi(json: JsValue, url_kind: String): Unit ={
-    val req = url_kind match {
-      case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
-      case "push" => ws.url("https://api.line.me/v2/bot/message/push")
-      case _ => throw new Exception("postLineApi関数のurl_kindは不正な値です。")
-    }
-    val headers = req.withHeaders(
-      "Content-Type" -> "application/json",
-      "Authorization" -> ("Bearer " + accessToken)
-    )
-    headers.post(json)
-  }
-
   //イベントの内容によって処理を分割する
-  def eventhandler(event:Events) =
+  def eventhandler(event:Event) =
     event.e_type match{
       //カルーセルからの選択入力の場合
+      case "follow" => follow(event)
       case "postback" => complete(event)
       //メッセージ送信の場合
       case "message" => replyMessage(event)
       case _ => throw new Exception("eventhandler関数のeventは不正な値です")
     }
 
+  def follow(event: Event) = {
+    //名前が登録されていなかった場合、登録の処理
+    val user = User.findByLineuser_id(event.source.lineuser_id)
+    if(user.isEmpty){
+      val username = getName(event.source.lineuser_id)
+      User.create(username, event.source.lineuser_id)
+    }
+  }
+
   //messageの内容によってjsonの処理を変え、返信する
-  def replyMessage(event:Events) ={
+  def replyMessage(event:Event) ={
     val json = if(event.message.text == "")  returnSimpleJson(event, "お願いはテキストで記述してください。")
     else event.message.text match {
-      case "#使い方" => help(event)
-      case "#一覧" => showOrder(event)
+      case "#使い方" => returnSimpleJson(event, ConfigFactory.load.getString("HOWTO_TEXT"))
+      //case "#一覧" => Order.showOrder(event)
       case "#通知する" => pushNotification(event)
       case "#通知しない" => returnSimpleJson(event, "通知しませんでした。")
-      case _ => addOrder(event)
+      //case _ => addOrder(event)
     }
     postLineApi(json,"reply")
   }
 
-  def returnSimpleJson(event:Events, message: String) =
+  def returnSimpleJson(event:Event, message: String) =
     Json.obj(
       "replyToken" -> event.replyToken,
       "messages" -> Json.arr(
@@ -135,10 +130,22 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       )
     )
 
+  def test = Action{
+//    val data = new Data("data")
+//    val i_source = new l_Source("s_type","lineuser_id")
+//    val message = Message("id", "m_type", "text")
+//    val orders = Order.showOrder(new Event("replyToken","e_type",12345,i_source,message,data))
+    //val user = Option(new User(1,None,None))
+
+    val orders = Order.findTodayOrder
+    println(orders)
+    Ok("ok")
+  }
+
   //直前にお願いした内容を通知する
-  def pushNotification(event: Events):JsValue = {
+  def pushNotification(event: Event):JsValue = {
     val conn = db.getConnection()
-    val user_id = findUserId(event.source.userId)
+    val user_id = User.findByLineuser_id(event.source.lineuser_id).get.id
     try {
       val stmt = conn.createStatement();
       //最新のお願いを取りに行く
@@ -155,7 +162,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
             }
             //お願いの内容があり、未通知の場合は、全員通知の処理を行う
             case (_, 0) => {
-              val pushComplete:Boolean = allPushNotification(getName(event.source.userId) + "さんが「" + rs.getString("contents") + "」のお願いを登録しました。", user_id)
+              val pushComplete:Boolean = allPushNotification(getName(event.source.lineuser_id) + "さんが「" + rs.getString("contents") + "」のお願いを登録しました。", user_id)
               if(pushComplete == true) {
                 val updateState = updateNotificationFlag(rs.getInt("id"))
                 if(updateState) "お願いの通知が完了しました。"
@@ -234,7 +241,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     comp
   }
 
-  def complete(event:Events):Unit = {
+  def complete(event:Event):Unit = {
       val now = new DateTime
       val nowtime = now.toString("yyyy/MM/dd HH:mm:ss")
       val conn = db.getConnection()
@@ -281,7 +288,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   }
 
   //お願いが完了した際に、お願いをした人に通知する処理
-  def completeNotification(event: Events) ={
+  def completeNotification(event: Event) ={
     //postbackのdata内にあるevent_idを使って、user_idを調べ、lineuseridを調べて、push通知するようにする
     val conn = db.getConnection()
     try {
@@ -292,7 +299,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       if(!rs.next) throw new Exception("ordersの要素がありません")
 
       var message: String = if(rs != null && rs.getString("contents") != "")
-        getName(event.source.userId) + "さんが、あなたのお願い\n" +
+        getName(event.source.lineuser_id) + "さんが、あなたのお願い\n" +
           "[" + rs.getString("contents") + "]" +
           "を完了しました！"
       else "エラーです"
@@ -313,131 +320,6 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     }
   }
 
-  //5件ずつデータが入ったカルーセルの配列を返す
-  def makeCarousels(rs: ResultSet): Seq[JsArray] = {
-    var count = 0
-    var carousel: JsArray = Json.arr()
-    var carousels = List[JsArray]()
-    //5件までデータを入れたcarouselを作り、carouselsに入れる
-    do{
-      count += 1
-      if(count == 5){
-        carousels :+= carousel
-        carousel = Json.arr()
-        count = 0
-      }
-
-      carousel = carousel append Json.obj(
-        "thumbnailImageUrl" -> "https://mikuri-bot.com/order/1040",
-        "title" -> (rs.getString("name") + "さんからのお願い"),
-        "text" -> rs.getString("contents"),
-        "actions" -> Json.arr(
-          Json.obj(
-            "type" -> "postback",
-            "label" -> "完了",
-            "data" -> rs.getInt("orders.id")
-          )
-        )
-      )
-
-    }while(rs.next)
-    carousels :+= carousel
-    carousels
-  }
-
-  def FromCarouselsToJsonOb(carousels: Seq[JsArray]): JsValue = {
-    var json:JsArray = Json.arr()
-    for(carousel <- carousels) {
-      json = json append Json.obj(
-        "type" -> "template",
-        "altText" -> "this is an carousel",
-        "template" -> Json.obj(
-          "type" -> "carousel",
-          "columns" -> carousel
-        )
-      )
-    }
-    json
-  }
-
-  //カルーセルで本日の予約一覧を表示
-  def showOrder(event:Events):JsValue = {
-    val now = new DateTime
-    val nowdate = now.toString("yyyy/MM/dd")
-    val conn = db.getConnection()
-    try {
-      val stmt = conn.createStatement()
-      val sql: String = "select * from orders left join users on orders.user_id = users.id where orders.created >='" + nowdate + " 00:00:00' and orders.endflag = 0"
-      val rs = stmt.executeQuery(sql)
-      val json = if(rs.next) {
-        Json.obj(
-          "replyToken" -> event.replyToken,
-          "messages" -> FromCarouselsToJsonOb(makeCarousels(rs))
-        )
-      } else {
-        Json.obj(
-          "replyToken" -> event.replyToken,
-          "messages" -> Json.arr(
-            Json.obj(
-              "type" -> "text",
-              "text" -> "現在頼み事はありません！"
-            )
-          )
-        )
-      }
-      json
-    }
-    catch {
-      case e:Exception => throw new Exception("showOrder関数でエラー")
-    }
-    finally
-    {
-      conn.close()
-    }
-  }
-
-  //使い方説明
-  def help(event:Events):JsValue = Json.obj(
-    "replyToken" -> event.replyToken,
-    "messages" -> Json.arr(
-      Json.obj(
-        "type" -> "text",
-        "text" -> ConfigFactory.load.getString("HOWTO_TEXT")
-      )
-    )
-  )
-
-  //ユーザー登録
-  def addUser(event:Events) = {
-    val conn = db.getConnection()
-    try {
-      val stmt = conn.createStatement();
-      //lineuser_idがdb内にない場合は登録
-      if(!existLineuser_id(event.source.userId))
-        stmt.executeUpdate("insert into users(name, lineuser_id) values ('" + getName(event.source.userId) + "', '" + event.source.userId + "')")
-    }
-    catch {
-      case e:Exception => throw new Exception("addUser関数でエラー")
-    } finally {
-      conn.close()
-    }
-  }
-
-  //lineuser_idからユーザーidを取得
-  def findUserId(lineuser_id: String):Int = {
-    val conn = db.getConnection()
-    try {
-      val stmt = conn.createStatement();
-      val rs: ResultSet = stmt.executeQuery("select id from users where lineuser_id = '" + lineuser_id + "' limit 1")
-      val id = if (rs.next) rs.getInt("id") else throw new Exception("findUserId関数で、userが見つからないエラー")
-      id
-    }catch {
-      case e:Exception => throw new Exception("findUserId関数でエラー")
-    } finally {
-      conn.close()
-    }
-  }
-
   //名前を取得する処理
   def getName(lineuser_id:String):String = {
     val req = ws.url("https://api.line.me/v2/bot/profile/" + lineuser_id)
@@ -448,66 +330,17 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     Await.result(future_name, Duration.Inf)
   }
 
-  //名前がdbに存在している場合はtrueを返す処理
-  def existLineuser_id(lineuser_id:String): Boolean = {
-    val users = try {
-        sql"""select * from users where lineuser_id = ${lineuser_id}""".toMap.list.apply()
-      }catch {case e: Exception => throw new Exception("existLineuser_idでError")}
-    users != Nil
-  }
-
-  //お願いを登録するか確認
-  def addOrder(event:Events) = {
-    val now = new DateTime
-    //名前が登録されていなかった場合、登録の処理
-    addUser(event)
-    //usersに登録したuser_idを取得
-    val user_id = findUserId(event.source.userId)
-    val ordermessage = event.message.text
-    try {
-      sql"""insert into orders(user_id, contents, created, endflag) values (${user_id}, ${ordermessage}, CURRENT_TIMESTAMP(), 0)""".execute.apply()
-      val jsonMessages:JsValue =
-        if(ordermessage != null){
-          Json.arr(
-            Json.obj(
-              "type" -> "text",
-              "text" -> ("「" + ordermessage + "」を登録しました")
-            ),
-            Json.obj(
-              "type" -> "template",
-              "altText" -> ("「" + ordermessage + "」を通知するか選択"),
-              "template"-> Json.obj(
-                "type"-> "confirm",
-                "text"-> "利用者にプッシュ通知を送りますか？",
-                "actions"-> Json.arr(
-                  Json.obj(
-                    //後でpostbackにする予定
-                    "type"-> "message",
-                    "label"-> "通知する",
-                    "text"-> "#通知する"
-                  ),
-                  Json.obj(
-                    "type"-> "message",
-                    "label"-> "通知しない",
-                    "text"-> "#通知しない"
-                  )
-                )
-              )
-            )
-          )
-        }
-        else {
-          Json.arr(
-            Json.obj(
-              "type" -> "text",
-              "text" -> "システムエラーにより、登録できませんでした"
-            )
-          )
-        }
-      Json.obj(
-        "replyToken" -> event.replyToken,
-        "messages" -> jsonMessages
-      )
-    } catch {case e:Exception => returnSimpleJson(event,"お願い登録時にエラーが発生しました")}
+  //渡されたjsonをLineApiにpost
+  def postLineApi(json: JsValue, url_kind: String): Unit ={
+    val req = url_kind match {
+      case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
+      case "push" => ws.url("https://api.line.me/v2/bot/message/push")
+      case _ => throw new Exception("postLineApi関数のurl_kindは不正な値です。")
+    }
+    val headers = req.withHeaders(
+      "Content-Type" -> "application/json",
+      "Authorization" -> ("Bearer " + accessToken)
+    )
+    headers.post(json)
   }
 }
