@@ -1,25 +1,21 @@
 package controllers
 
 import com.typesafe.config.ConfigFactory
-import java.sql.ResultSet
 import javax.inject.Inject
 
 import models._
 import models.db._
-import org.joda.time.DateTime
+import models.json._
 import play.api.mvc._
 import play.api.db._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 import play.api.libs.ws._
+
 import scala.concurrent._
 import scala.concurrent.duration.Duration
-import scalikejdbc.{TxBoundary, _}
-import views.html.users.list
 
 class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
-  //scalikejdbcを使うのに必要
-  implicit val session = AutoSession
 
   val accessToken = ConfigFactory.load.getString("ACCESS_TOKEN")
 
@@ -91,9 +87,9 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     event.e_type match{
       //カルーセルからの選択入力の場合
       case "follow" => follow(event)
-      case "postback" => complete(event)
+      case "postback" => postbackhandler(event)
       //メッセージ送信の場合
-      case "message" => replyMessage(event)
+      case "message" => messagehandler(event)
       case _ => throw new Exception("eventhandler関数のeventは不正な値です")
     }
 
@@ -106,218 +102,32 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     }
   }
 
+  def postbackhandler(event: Event) = {
+    //event.postback.dataは[action=pushNotification&orderId=1]の形
+    val postbackText: String = event.postback.data
+    val andPosition: Int = postbackText.indexOf("&")
+    val action: String = postbackText.substring(7, andPosition)
+    val order_id: Int = postbackText.substring(andPosition + 1).toInt
+
+    val (pushJson:JsValue, replyJson:JsValue) = action match {
+      case "notification" => GetJson.notification(event, order_id)
+      case "complete" => GetJson.complete(event,order_id)
+      case _ => throw new Exception("未知のactionです。")
+    }
+    postLineApi(replyJson, "reply")
+    postLineApi(pushJson, "push")
+  }
+
   //messageの内容によってjsonの処理を変え、返信する
-  def replyMessage(event:Event) ={
-    val json = if(event.message.text == "")  returnSimpleJson(event, "お願いはテキストで記述してください。")
+  def messagehandler(event:Event) ={
+    val json = if(event.message.text == "")  MakeJson.makeReplyTextJson(event.replyToken, "お願いはテキストで記述してください。")
     else event.message.text match {
-      case "#使い方" => returnSimpleJson(event, ConfigFactory.load.getString("HOWTO_TEXT"))
-      //case "#一覧" => Order.showOrder(event)
-      case "#通知する" => pushNotification(event)
-      case "#通知しない" => returnSimpleJson(event, "通知しませんでした。")
-      //case _ => addOrder(event)
+      case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
+      case "#一覧" => GetJson.showOrder(event)
+      case "#通知しない" => MakeJson.makeReplyTextJson(event.replyToken,  "通知しませんでした。")
+      case _ => GetJson.addOrder(event)
     }
     postLineApi(json,"reply")
-  }
-
-  def returnSimpleJson(event:Event, message: String) =
-    Json.obj(
-      "replyToken" -> event.replyToken,
-      "messages" -> Json.arr(
-        Json.obj(
-          "type" -> "text",
-          "text" -> message
-        )
-      )
-    )
-
-  def test = Action{
-//    val data = new Data("data")
-//    val i_source = new l_Source("s_type","lineuser_id")
-//    val message = Message("id", "m_type", "text")
-//    val orders = Order.showOrder(new Event("replyToken","e_type",12345,i_source,message,data))
-    //val user = Option(new User(1,None,None))
-
-    val orders = Order.findTodayOrder
-    println(orders)
-    Ok("ok")
-  }
-
-  //直前にお願いした内容を通知する
-  def pushNotification(event: Event):JsValue = {
-    val conn = db.getConnection()
-    val user_id = User.findByLineuser_id(event.source.lineuser_id).get.id
-    try {
-      val stmt = conn.createStatement();
-      //最新のお願いを取りに行く
-      //後でpostbackにして修正する予定
-      val sql: String = "select * from orders where user_id = '" + user_id + "' order by created desc limit 1"
-      val rs:ResultSet = stmt.executeQuery(sql)
-      val message = rs.next match {
-        //お願いデータがある場合
-        case true => {
-          (rs.getString("contents"), rs.getInt("notificationFlag")) match {
-            //お願いの内容がない場合は通知しない
-            case (null, _) => {
-              throw new Exception("pushNotification contents null Error")
-            }
-            //お願いの内容があり、未通知の場合は、全員通知の処理を行う
-            case (_, 0) => {
-              val pushComplete:Boolean = allPushNotification(getName(event.source.lineuser_id) + "さんが「" + rs.getString("contents") + "」のお願いを登録しました。", user_id)
-              if(pushComplete == true) {
-                val updateState = updateNotificationFlag(rs.getInt("id"))
-                if(updateState) "お願いの通知が完了しました。"
-                else {
-                  throw new Exception("updateNotificationFlag Error")
-                }
-              }
-              else {
-                throw new Exception("allPushNotification Error")
-              }
-            }
-            //notificationFlagが1(通知済み)だったら、通知済みを伝える
-            case (_, 1) => "既に通知済みです"
-          }
-        }
-        //お願いデータがない場合はエラー
-        case _ => "システムエラーが発生しました。お願いの通知ができませんでした。"
-      }
-      Json.obj(
-        "replyToken" -> event.replyToken,
-        "messages" -> Json.arr(
-          Json.obj(
-            "type" -> "text",
-            "text" -> message
-          )
-        )
-      )
-    } finally {
-      conn.close()
-    }
-  }
-
-  //お願いの通知フラグを1に変更する
-  def updateNotificationFlag(order_id: Int): Boolean ={
-    var updateNotificationState:Boolean = false
-    val conn = db.getConnection()
-    try {
-      val stmt = conn.createStatement();
-      val sql: String = "update orders set notificationFlag = 1 where id = " + order_id
-      stmt.execute(sql)
-      updateNotificationState = true
-    } finally {
-      conn.close()
-    }
-    updateNotificationState
-  }
-
-  //渡されたテキストをuser全員に通知。完了した場合はtrueを返す
-  def allPushNotification(message : String, user_id: Int): Boolean = {
-    val conn = db.getConnection()
-    //正常に完了した場合はtrueにする
-    var comp: Boolean = false
-    try {
-      val stmt = conn.createStatement();
-      val sql: String = "select * from users where id <> '" + user_id + "'"
-      val rs:ResultSet = stmt.executeQuery(sql)
-      while(rs.next){
-        var json = Json.obj(
-          "to" -> rs.getString("lineuser_id"),
-          "messages" -> Json.arr(
-            Json.obj(
-              "type" -> "text",
-              "text" -> message
-            )
-          )
-        )
-        postLineApi(json,"push")
-      }
-      comp = true
-    }catch{
-      case e:Exception => throw new Exception("allPushNotification関数のエラー")
-    }
-    finally {
-      conn.close()
-    }
-    comp
-  }
-
-  def complete(event:Event):Unit = {
-      val now = new DateTime
-      val nowtime = now.toString("yyyy/MM/dd HH:mm:ss")
-      val conn = db.getConnection()
-      var message = "エラーです"
-      try {
-        val stmt = conn.createStatement()
-        //完了した予約の内容を取ってくる
-        val selSql: String = "select * from orders where id =" + event.postback.data
-        val rs = stmt.executeQuery(selSql)
-        if(!rs.next) throw new Exception("ordersの要素がありません")
-        val endflag = rs.getInt("endflag")
-        message = (rs, endflag, rs.getString("contents")) match {
-          case (rs, 0, contents) if(rs != null && contents != "") => "[" + rs.getString("contents") + "]を完了しました！"
-          case (rs, 1, contents) if(rs != null && contents != "") => "そのお願いは既に完了済みです！"
-        }
-        //completesテーブルに書き込み
-        if(rs != null && rs.getInt("user_id") != 0){
-          stmt.execute("insert into completes(user_id, order_id, created) " +
-            "values(" + rs.getInt("user_id") + ", " + rs.getInt("id") +
-            ", '" + now.toString("yyyy/MM/dd HH:mm:ss") + "')")
-        }
-        else throw new Exception("complete関数で完了すべきお願いがないエラー")
-        var json = Json.obj(
-          "replyToken" -> event.replyToken,
-          "messages" -> Json.arr(
-            Json.obj(
-              "type" -> "text",
-              "text" -> message
-          )
-          )
-        )
-        //endflagを1に修正
-        stmt.executeUpdate("update orders set endflag = 1 where id =" + event.postback.data)
-      postLineApi(json,"reply")
-      //お願いが未完了→完了になる場合は、依頼者に通知
-      if(endflag == 0) completeNotification(event)
-    } catch{
-        case e:Exception => throw new Exception("complete関数でエラー")
-      }
-    finally
-    {
-      conn.close()
-    }
-  }
-
-  //お願いが完了した際に、お願いをした人に通知する処理
-  def completeNotification(event: Event) ={
-    //postbackのdata内にあるevent_idを使って、user_idを調べ、lineuseridを調べて、push通知するようにする
-    val conn = db.getConnection()
-    try {
-      val stmt = conn.createStatement()
-      //event_idでlineuseridを調べるsql書く
-      val rs = stmt.executeQuery("select * from orders left join users on orders.user_id = users.id where orders.id =" + event.postback.data)
-      //完了連絡json message作成
-      if(!rs.next) throw new Exception("ordersの要素がありません")
-
-      var message: String = if(rs != null && rs.getString("contents") != "")
-        getName(event.source.lineuser_id) + "さんが、あなたのお願い\n" +
-          "[" + rs.getString("contents") + "]" +
-          "を完了しました！"
-      else "エラーです"
-      var json = Json.obj(
-        "to" -> rs.getString("lineuser_id"),
-        "messages" -> Json.arr(
-          Json.obj(
-            "type" -> "text",
-            "text" -> message
-          )
-        )
-      )
-      postLineApi(json,"push")
-    }
-    finally
-    {
-      conn.close()
-    }
   }
 
   //名前を取得する処理

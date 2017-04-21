@@ -31,9 +31,12 @@ object User extends SQLSyntaxSupport[User]{
     select.from(User as u).where.eq(u.lineuser_id, lineuser_id)
   }.map(User(u)).single.apply()
 
-  def create(name: String, lineuser_id: String)(implicit session: DBSession): User = {
-    if(name == "" || lineuser_id == "") throw new Exception("名前とlineuser_idは必須です。")
-    //既に登録済みだったら、エラー
+  //指定されたuser以外のuser
+  def findByOtherThanThatUsers(id: Int)(implicit session:DBSession = autoSession): List[User] = withSQL{
+    select.from(User as u).where.ne(u.id, id)
+  }.map(User(u)).list.apply()
+
+  def create(name: String, lineuser_id: String)(implicit session: DBSession = AutoSession): User = {
     val id = withSQL{
       insert.into(User).namedValues(
         column.name -> name,

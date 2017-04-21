@@ -12,9 +12,7 @@ case class Order(
   endflag: Boolean,
   notificationflag: Boolean,
   created: DateTime
-){
-  //def save()(implicit session: DBSession = Order.autoSession): Order = Order.save(this)(session)
-}
+)
 
 object Order extends SQLSyntaxSupport[Order]{
   override val tableName = "orders"
@@ -37,7 +35,15 @@ object Order extends SQLSyntaxSupport[Order]{
   //リレーションでつながっているテーブル。複数ある場合は(u , o) = (User.u,Order.o)のように書くこと
   private val u = User.u
 
-  def findTodayOrder()(implicit session: DBSession = autoSession):List[Order] = withSQL {
+  def find(id: Int)(implicit session: DBSession = autoSession):Option[Order] = withSQL {
+    select
+      .from(Order as o)
+      .leftJoin(User as u).on(o.user_id, u.id)
+      .where.eq(o.id, id)
+  }.map(Order(o)).single.apply()
+
+
+  def findTodayOrders()(implicit session: DBSession = autoSession):List[Order] = withSQL {
     select
       .from(Order as o)
       .leftJoin(User as u).on(o.user_id, u.id)
@@ -64,16 +70,12 @@ object Order extends SQLSyntaxSupport[Order]{
       created = created
     )
   }
-//
-//  def save(o: Order)(implicit session: DBSession = autoSession): Order = {
-//    withSQL{
-//      update(Order).set(
-//        column.user_id -> o.user_id,
-//        column.contents -> o.contents,
-//        column.created -> o.created,
-//        column.endflag -> o.endflag
-//      )
-//    }.update.apply()
-//    o
-//  }
+
+  def updateEndflagTrue(order_id: Int)(implicit session: DBSession = autoSession) =
+    withSQL{
+      update(Order).set(
+        column.endflag -> o.endflag
+      ).where.eq(column.id, order_id)
+    }.update.apply()
+
 }
