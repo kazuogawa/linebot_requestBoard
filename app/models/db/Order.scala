@@ -58,7 +58,7 @@ object Order extends SQLSyntaxSupport[Order]{
         column.contents -> contents,
         column.created -> created
       )
-    }.updateAndReturnGeneratedKey().apply()
+    }.updateAndReturnGeneratedKey.apply()
 
     Order(
       id = id.toInt,

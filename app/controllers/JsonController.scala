@@ -45,7 +45,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
 
   implicit val l_SourceReads: Reads[l_Source] = (
     (__ \ "type").read[String] and
-    (__ \ "lineuser_id").read[String]
+    (__ \ "userId").read[String]
   )(l_Source.apply _)
 
   implicit val MessageReads: Reads[Message] = (
@@ -71,6 +71,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   //LineのMessaging APIからJsonがわたってきた際に、中身を解析し、対応したJsonをLineサーバーに返す
   def json = Action(BodyParsers.parse.json) { implicit request =>
     val eventsResult = (request.body \ "events")(0).validate[Event]
+    println(eventsResult)
     eventsResult.fold(
         errors => {
           throw new Exception("returnmessage関数でエラーです")
@@ -85,11 +86,9 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   //イベントの内容によって処理を分割する
   def eventhandler(event:Event) =
     event.e_type match{
-      //カルーセルからの選択入力の場合
       case "follow" => follow(event)
-      case "postback" => postbackhandler(event)
-      //メッセージ送信の場合
       case "message" => messagehandler(event)
+      case "postback" => postbackhandler(event)
       case _ => throw new Exception("eventhandler関数のeventは不正な値です")
     }
 
@@ -100,6 +99,18 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       val username = getName(event.source.lineuser_id)
       User.create(username, event.source.lineuser_id)
     }
+  }
+
+  //messageの内容によってjsonの処理を変え、返信する
+  def messagehandler(event:Event) ={
+    val json = if(event.message.text == "") MakeJson.makeReplyTextJson(event.replyToken, "お願いはテキストで記述してください。")
+    else event.message.text match {
+      case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
+      case "#一覧" => GetJson.showOrder(event)
+      case "#通知しない" => MakeJson.makeReplyTextJson(event.replyToken,  "通知しませんでした。")
+      case _ => GetJson.addOrder(event)
+    }
+    postLineApi(json,"reply")
   }
 
   def postbackhandler(event: Event) = {
@@ -116,18 +127,6 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     }
     postLineApi(replyJson, "reply")
     postLineApi(pushJson, "push")
-  }
-
-  //messageの内容によってjsonの処理を変え、返信する
-  def messagehandler(event:Event) ={
-    val json = if(event.message.text == "")  MakeJson.makeReplyTextJson(event.replyToken, "お願いはテキストで記述してください。")
-    else event.message.text match {
-      case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
-      case "#一覧" => GetJson.showOrder(event)
-      case "#通知しない" => MakeJson.makeReplyTextJson(event.replyToken,  "通知しませんでした。")
-      case _ => GetJson.addOrder(event)
-    }
-    postLineApi(json,"reply")
   }
 
   //名前を取得する処理
