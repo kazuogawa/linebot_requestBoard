@@ -6,6 +6,8 @@ import javax.inject.Inject
 import models._
 import models.db._
 import models.json._
+import org.joda.time.DateTime
+import org.joda.time.format.DateTimeFormat
 import play.api.mvc._
 import play.api.db._
 import play.api.libs.json._
@@ -71,7 +73,6 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   //LineのMessaging APIからJsonがわたってきた際に、中身を解析し、対応したJsonをLineサーバーに返す
   def json = Action(BodyParsers.parse.json) { implicit request =>
     val eventsResult = (request.body \ "events")(0).validate[Event]
-    println(eventsResult)
     eventsResult.fold(
         errors => {
           throw new Exception("returnmessage関数でエラーです")

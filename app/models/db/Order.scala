@@ -50,13 +50,13 @@ object Order extends SQLSyntaxSupport[Order]{
       .where.eq(o.endflag, false).and.ge(o.created, new DateTime().toString("yyyy/MM/dd") + " 00:00:00")
   }.map(Order(o)).list.apply()
 
-  def create(user_id: Int, contents: String, created: DateTime = DateTime.now)(implicit session: DBSession = autoSession): Order = {
+  def create(user_id: Int, contents: String, created: DateTime = new DateTime())(implicit session: DBSession = autoSession): Order = {
     if(contents == "") throw new Exception("contentsが空です。")
     val id = withSQL {
       insert.into(Order).namedValues(
         column.user_id -> user_id,
         column.contents -> contents,
-        column.created -> created
+        column.created -> created.toString("yyyy/MM/dd HH:mm:ss")
       )
     }.updateAndReturnGeneratedKey.apply()
 
@@ -74,8 +74,7 @@ object Order extends SQLSyntaxSupport[Order]{
   def updateEndflagTrue(order_id: Int)(implicit session: DBSession = autoSession) =
     withSQL{
       update(Order).set(
-        column.endflag -> o.endflag
+        column.endflag -> 1
       ).where.eq(column.id, order_id)
     }.update.apply()
-
 }

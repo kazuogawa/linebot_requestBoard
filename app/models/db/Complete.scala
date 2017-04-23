@@ -12,7 +12,7 @@ case class Complete (
 object Complete extends SQLSyntaxSupport[Complete] {
 
   override val tableName = "completes"
-  override val columns = Seq("id", "user_id", "order_id", "creaeted")
+  override val columns = Seq("id", "user_id", "order_id", "created")
 
   def apply(c: SyntaxProvider[Complete])(rs: WrappedResultSet):Complete = apply(c.resultName)(rs)
   def apply(c: ResultName[Complete])(rs: WrappedResultSet): Complete = new Complete(
@@ -22,14 +22,14 @@ object Complete extends SQLSyntaxSupport[Complete] {
     created = rs.get(c.created)
   )
 
-  val u = Complete.syntax("c")
+  val c = Complete.syntax("c")
 
-  def create(user_id: Int, order_id: Int, created: DateTime = DateTime.now)(implicit session: DBSession = AutoSession): Complete = {
+  def create(user_id: Int, order_id: Int, created: DateTime = new DateTime())(implicit session: DBSession = autoSession): Complete = {
     val id = withSQL{
       insert.into(Complete).namedValues(
         column.user_id -> user_id,
         column.order_id -> order_id,
-        column.created -> created
+        column.created -> created.toString("yyyy/MM/dd HH:mm:ss")
       )
     }.updateAndReturnGeneratedKey.apply().toInt
 
