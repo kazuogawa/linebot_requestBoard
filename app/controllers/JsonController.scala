@@ -107,7 +107,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     val json = if(event.message.text == "") MakeJson.makeReplyTextJson(event.replyToken, "お願いはテキストで記述してください。")
     else event.message.text match {
       case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
-      case "#一覧" => GetJson.showOrder(event)
+      case "#一覧" => GetJson.showOrder(event.replyToken)
       case "#通知しない" => MakeJson.makeReplyTextJson(event.replyToken,  "通知しませんでした。")
       case _ => GetJson.addOrder(event)
     }
@@ -122,8 +122,8 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     val order_id: Int = postbackText.substring(andPosition + 1).toInt
 
     val (pushJson:JsValue, replyJson:JsValue) = action match {
-      case "notification" => GetJson.notification(event, order_id)
-      case "complete" => GetJson.complete(event,order_id)
+      case "notification" => GetJson.notification(event.replyToken, order_id)
+      case "complete" => GetJson.complete(event.replyToken,order_id)
       case _ => throw new Exception("未知のactionです。")
     }
     postLineApi(replyJson, "reply")
@@ -141,16 +141,18 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   }
 
   //渡されたjsonをLineApiにpost
-  def postLineApi(json: JsValue, url_kind: String): Unit ={
-    val req = url_kind match {
-      case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
-      case "push" => ws.url("https://api.line.me/v2/bot/message/push")
-      case _ => throw new Exception("postLineApi関数のurl_kindは不正な値です。")
+  def postLineApi(json: JsValue, url_kind: String): Unit =
+    if(json != null) {
+      val req = url_kind match {
+        case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
+        case "push" => ws.url("https://api.line.me/v2/bot/message/push")
+        case _ => throw new Exception("postLineApi関数のurl_kindは不正な値です。")
+      }
+      val headers = req.withHeaders(
+        "Content-Type" -> "application/json",
+        "Authorization" -> ("Bearer " + accessToken)
+      )
+      headers.post(json)
     }
-    val headers = req.withHeaders(
-      "Content-Type" -> "application/json",
-      "Authorization" -> ("Bearer " + accessToken)
-    )
-    headers.post(json)
-  }
+
 }

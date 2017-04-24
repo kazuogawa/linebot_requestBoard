@@ -30,25 +30,27 @@ object Order extends SQLSyntaxSupport[Order]{
     created = rs.get(o.created)
   )
 
-  val o = Order.syntax("o")
+  // join query with user table
+  def apply(o: SyntaxProvider[Order], u: SyntaxProvider[User])(rs: WrappedResultSet): Order = {
+    apply(o.resultName)(rs).copy(user = Some(User(u)(rs)))
+  }
 
-  //リレーションでつながっているテーブル。複数ある場合は(u , o) = (User.u,Order.o)のように書くこと
-  private val u = User.u
+  private val (o, u) = (Order.syntax("o"),User.syntax("u"))
 
-  def find(id: Int)(implicit session: DBSession = autoSession):Option[Order] = withSQL {
-    select
-      .from(Order as o)
-      .leftJoin(User as u).on(o.user_id, u.id)
-      .where.eq(o.id, id)
-  }.map(Order(o)).single.apply()
-
+  def find(id: Int)(implicit session: DBSession = autoSession) :Option[Order] =
+    withSQL {
+      select
+        .from(Order as o)
+        .leftJoin(User as u).on(o.user_id, u.id)
+        .where.eq(o.id, id)
+    }.map(Order(o,u)).single.apply()
 
   def findTodayOrders()(implicit session: DBSession = autoSession):List[Order] = withSQL {
     select
       .from(Order as o)
       .leftJoin(User as u).on(o.user_id, u.id)
       .where.eq(o.endflag, false).and.ge(o.created, new DateTime().toString("yyyy/MM/dd") + " 00:00:00")
-  }.map(Order(o)).list.apply()
+  }.map(Order(o,u)).list.apply()
 
   def create(user_id: Int, contents: String, created: DateTime = new DateTime())(implicit session: DBSession = autoSession): Order = {
     if(contents == "") throw new Exception("contentsが空です。")

@@ -7,58 +7,66 @@ import play.api.libs.json.{JsValue, Json}
 
 object GetJson {
   def addOrder(event:Event):JsValue = {
-    val user_id = User.findByLineuser_id(event.source.lineuser_id).get.id
-    val replyMessage = event.message.text
-    val order = Order.create(user_id,event.message.text)
-    MakeJson.makeAddOrderReplyJson(event.replyToken, "「" + event.message.text + "」を登録しました", order.id)
+    val user = User.findByLineuser_id(event.source.lineuser_id)
+    val replyToken = event.replyToken
+    user match {
+      //投稿者がテーブルに登録済みの場合
+      case Some(userdata) => {
+        val contents = event.message.text
+        val order = Order.create(userdata.id,contents)
+        MakeJson.makeAddOrderReplyJson(replyToken, "「" + contents + "」を登録しました", order.id)
+      }
+      //投稿者のlineuser_idがテーブルに未登録、または未知のパラメータが来た場合(基本的にはfollowした際にlineuser_id登録されるため、エラー以外で下記の処理は発生しない)
+      case _ => MakeJson.makeReplyTextJson(replyToken, "システムのエラーが発生しました。お願いを登録できませんでした。")
+    }
   }
 
   //カルーセルで本日の予約一覧を表示
-  def showOrder(event:Event):JsValue = {
+  def showOrder(replyToken: String):JsValue = {
     val orders = Order.findTodayOrders
-    val json = if (orders != List()) {
+    if (orders != List()) {
       Json.obj(
-        "replyToken" -> event.replyToken,
+        "replyToken" -> replyToken,
         "messages" -> MakeJson.FromCarouselsToJsonOb(MakeJson.makeOrdersCarousels(orders))
       )
-    } else MakeJson.makeReplyTextJson(event.replyToken,"現在頼み事はありません！")
-    json
+    } else MakeJson.makeReplyTextJson(replyToken,"現在頼み事はありません！")
   }
 
   //通知用のJson(pushJson)と返信用のJson(replyJson)を返す
-  def notification(event: Event, order_id: Int):(JsValue, JsValue) = {
-    val optionOrder = Order.find(order_id)
-    if(optionOrder == None) throw new Exception("お願いが存在していません。")
-    val orderdata = optionOrder.get
-    //通知が1度完了している場合は、通知済みのことを伝える。
-    val replyMessage = if(orderdata.endflag) "既に通知済みです。" else "通知しました。"
-    val replyJson = MakeJson.makeReplyTextJson(event.replyToken, replyMessage)
-    val pushUsers =  User.findByOtherThanThatUsers(orderdata.user_id)
-    val pushMessage = orderdata.user.get.name + "さんが「" + orderdata.contents + "」のお願いを登録しました。"
-    val pushJson:JsValue = if(orderdata.endflag) null else MakeJson.makeNotificationPushJson(pushUsers, pushMessage)
-    (pushJson,replyJson)
-  }
-
-  //通知用のJson(pushJson)と返信用のJson(replyJson)を返す
-  def complete(event:Event, order_id: Int):(JsValue, JsValue) = {
-    val order = Order.find(order_id).get
-    //お願いが未完了(endflagがfalse)の場合の処理
-    if(order.endflag == false) {
-      Order.updateEndflagTrue(order_id)
-      Complete.create(order.user_id, order_id)
-    }
-    val replyMessage =
-      if(order.endflag == false) ("[" + order.contents + "]を完了しました！")
-      else "そのお願いは既に完了済みです！"
-    val replyJson:JsValue = MakeJson.makeReplyTextJson(event.replyToken,replyMessage)
-
-    //お願いが未完了→完了になる場合は、依頼者に通知
-    val pushJson:JsValue =
-      if(order.endflag == false) {
-        val pushMessage:String = order.user.get.name + "さんが、あなたのお願い\n" + "[" + order.contents + "]" + "を完了しました！"
-        MakeJson.makeCompleteNotificationPushJson(order.user.get.lineuser_id, pushMessage)
+  def notification(repryToken: String, order_id: Int):(JsValue, JsValue) =
+    Order.find(order_id) match {
+      case None =>
+        (null, MakeJson.makeReplyTextJson(repryToken, "お願いが存在していません。通知できませんでした。"))
+      case Some(orderdata) if(orderdata.user.isEmpty) =>
+        (null, MakeJson.makeReplyTextJson(repryToken, "お願いを投稿したユーザーが存在していません。"))
+      case Some(orderdata) if(orderdata.user.get.name != null && orderdata.user.get.name != "") => {
+        //通知が1度完了している場合は、通知済みのことを伝える。
+        val replyMessage = if(orderdata.endflag) "既に通知済みです。" else "通知しました。"
+        val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, replyMessage)
+        val pushUsers =  User.findByOtherThanThatUsers(orderdata.user_id)
+        val pushMessage = orderdata.user.get.name + "さんが「" + orderdata.contents + "」のお願いを登録しました。"
+        val pushJson:JsValue = if(orderdata.endflag) null else MakeJson.makeNotificationPushJson(pushUsers, pushMessage)
+        (pushJson, replyJson)
       }
-      else null
-    (pushJson, replyJson)
+      case _ => throw new Exception("notification Error")
+    }
+
+  //通知用のJson(pushJson)と返信用のJson(replyJson)を返す
+  def complete(repryToken: String, order_id: Int):(JsValue, JsValue) =
+    Order.find(order_id) match{
+      case None =>
+        (null, MakeJson.makeReplyTextJson(repryToken, "お願いが存在しません。通知できませんでした。"))
+      //分かりやすくするため、true、falseを明示的に記述
+      case Some(orderdata) if(orderdata.endflag == true) =>
+        (null, MakeJson.makeReplyTextJson(repryToken, "そのお願いは既に完了済みです！"))
+      case Some(orderdata) if(orderdata.endflag == false && orderdata.user.isDefined) => {
+        Order.updateEndflagTrue(order_id)
+        Complete.create(orderdata.user_id, order_id)
+        val pushMessage = orderdata.user.get.name + "さんが、あなたのお願い\n" + "[" + orderdata.contents + "]" + "を完了しました！"
+        val pushJson:JsValue = MakeJson.makeCompleteNotificationPushJson(orderdata.user.get.lineuser_id, pushMessage)
+        val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, "[" + orderdata.contents + "]を完了しました！")
+        (pushJson, replyJson)
+      }
+      case _ => throw new Exception("complete Error")
   }
 }
