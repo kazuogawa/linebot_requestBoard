@@ -6,8 +6,6 @@ import javax.inject.Inject
 import models._
 import models.db._
 import models.json._
-import org.joda.time.DateTime
-import org.joda.time.format.DateTimeFormat
 import play.api.mvc._
 import play.api.db._
 import play.api.libs.json._
@@ -75,7 +73,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     val eventsResult = (request.body \ "events")(0).validate[Event]
     eventsResult.fold(
         errors => {
-          throw new Exception("returnmessage関数でエラーです")
+          throw new Exception("Jsonの形式が不正です。")
         },
         event => {
           eventhandler(event)
@@ -87,18 +85,20 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   //イベントの内容によって処理を分割する
   def eventhandler(event:Event) =
     event.e_type match{
-      case "follow" => follow(event)
+      case "follow" => follow(event.source.lineuser_id)
+      case "unfollow" => //友達登録解除された際の処理はなし
       case "message" => messagehandler(event)
       case "postback" => postbackhandler(event)
       case _ => throw new Exception("eventhandler関数のeventは不正な値です")
     }
 
-  def follow(event: Event) = {
+  def follow(lineuser_id: String) = {
     //名前が登録されていなかった場合、登録の処理
-    val user = User.findByLineuser_id(event.source.lineuser_id)
+    val user = User.findByLineuser_id(lineuser_id)
     if(user.isEmpty){
-      val username = getName(event.source.lineuser_id)
-      User.create(username, event.source.lineuser_id)
+      val username = getName(lineuser_id)
+      if(username == "") throw new Exception("ユーザーを登録することができませんでした。")
+      User.create(username, lineuser_id)
     }
   }
 
@@ -109,25 +109,39 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
       case "#一覧" => GetJson.showOrder(event.replyToken)
       case "#通知しない" => MakeJson.makeReplyTextJson(event.replyToken,  "通知しませんでした。")
+      //上記以外の場合は登録する仕組みになっているため、セキュリティホールの可能性が高い。適切な分岐方法があれば修整。
       case _ => GetJson.addOrder(event)
     }
-    postLineApi(json,"reply")
+    val result = postLineApi(json,"reply")
   }
 
   def postbackhandler(event: Event) = {
-    //event.postback.dataは[action=pushNotification&orderId=1]の形
-    val postbackText: String = event.postback.data
-    val andPosition: Int = postbackText.indexOf("&")
-    val action: String = postbackText.substring(7, andPosition)
-    val order_id: Int = postbackText.substring(andPosition + 1).toInt
-
-    val (pushJson:JsValue, replyJson:JsValue) = action match {
-      case "notification" => GetJson.notification(event.replyToken, order_id)
-      case "complete" => GetJson.complete(event.replyToken,order_id)
-      case _ => throw new Exception("未知のactionです。")
+    //event.postback.dataは[action=notification&order_id=1]の形]
+    //いいパーサーが見つかればそれに置き換えたい。。
+    event.postback.data match {
+      case postbackText if(postbackText.length > 7) => {
+        val andPosition: Int = postbackText.indexOf("&")
+        //7文字目から&までの文字列(アクション名)を取得("action="が7文字なので7を指定)
+        val action: String = postbackText.substring(7, andPosition)
+        //id名の"="の位置を取得
+        val idNameEqualPosition = postbackText.indexOf("id=") + 2
+        //id名を取得。&の次の文字から、=までの位置の文字列をidNameに入れる。
+        // (例：action=notification&order_id=1　の場合はorder_idがidNameに入る)
+        val idName = postbackText.substring(andPosition + 1, idNameEqualPosition)
+        val id = idName match {
+          case "order_id" => postbackText.substring(idNameEqualPosition + 1).toInt
+          case _ => throw new Exception("未知のid名です。")
+        }
+        val (pushJson, replyJson):(JsValue,JsValue) = action match {
+          case "notification" => GetJson.notification(event.replyToken, id)
+          case "complete" => GetJson.complete(event.replyToken,id)
+          case _ => (null, MakeJson.makeReplyTextJson(event.replyToken, "エラーが発生しました。処理を正常に完了させることができませんでした。"))
+        }
+        postLineApi(replyJson, "reply")
+        postLineApi(pushJson, "push")
+      }
+      case _ => postLineApi(MakeJson.makeReplyTextJson(event.replyToken, "エラーが発生しました。処理を正常に完了させることができませんでした。"), "reply")
     }
-    postLineApi(replyJson, "reply")
-    postLineApi(pushJson, "push")
   }
 
   //名前を取得する処理

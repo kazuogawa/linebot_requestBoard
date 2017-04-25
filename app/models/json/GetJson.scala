@@ -3,6 +3,7 @@ package models.json
 import models._
 import models.db.User
 import models.db._
+import org.joda.time.DateTime
 import play.api.libs.json.{JsValue, Json}
 
 object GetJson {
@@ -27,7 +28,7 @@ object GetJson {
     if (orders != List()) {
       Json.obj(
         "replyToken" -> replyToken,
-        "messages" -> MakeJson.FromCarouselsToJsonOb(MakeJson.makeOrdersCarousels(orders))
+        "messages" -> MakeJson.makeCarouselsJson(MakeJson.makeOrdersCarousels(orders), "お願い一覧")
       )
     } else MakeJson.makeReplyTextJson(replyToken,"現在頼み事はありません！")
   }
@@ -39,15 +40,24 @@ object GetJson {
         (null, MakeJson.makeReplyTextJson(repryToken, "お願いが存在していません。通知できませんでした。"))
       case Some(orderdata) if(orderdata.user.isEmpty) =>
         (null, MakeJson.makeReplyTextJson(repryToken, "お願いを投稿したユーザーが存在していません。"))
-      case Some(orderdata) if(orderdata.user.get.name != null && orderdata.user.get.name != "") => {
+      //通知したい日が、投稿日時以外なら、投稿が期限切れのことを伝える
+      case Some(orderdata) if(orderdata.created.toString("yyyy/MM/dd") != DateTime.now.toString("yyyy/MM/dd")) =>
+        (null, MakeJson.makeReplyTextJson(repryToken, "そのお願いは期限切れです。"))
+      case Some(orderdata) if(orderdata.user.get.name != null && orderdata.user.get.name != "") =>
         //通知が1度完了している場合は、通知済みのことを伝える。
-        val replyMessage = if(orderdata.endflag) "既に通知済みです。" else "通知しました。"
-        val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, replyMessage)
-        val pushUsers =  User.findByOtherThanThatUsers(orderdata.user_id)
-        val pushMessage = orderdata.user.get.name + "さんが「" + orderdata.contents + "」のお願いを登録しました。"
-        val pushJson:JsValue = if(orderdata.endflag) null else MakeJson.makeNotificationPushJson(pushUsers, pushMessage)
-        (pushJson, replyJson)
-      }
+        orderdata.endflag match {
+          case true => {
+            val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, "既に通知済みです。")
+            (null, replyJson)
+          }
+          case false => {
+            val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, "通知しました。")
+            val pushUsers =  User.findByOtherThanThatUsers(orderdata.user_id)
+            val pushMessage = orderdata.user.get.name + "さんが「" + orderdata.contents + "」のお願いを登録しました。"
+            val pushJson:JsValue = MakeJson.makePushJson(pushUsers, pushMessage)
+            (pushJson, replyJson)
+          }
+        }
       case _ => throw new Exception("notification Error")
     }
 
@@ -63,7 +73,7 @@ object GetJson {
         Order.updateEndflagTrue(order_id)
         Complete.create(orderdata.user_id, order_id)
         val pushMessage = orderdata.user.get.name + "さんが、あなたのお願い\n" + "[" + orderdata.contents + "]" + "を完了しました！"
-        val pushJson:JsValue = MakeJson.makeCompleteNotificationPushJson(orderdata.user.get.lineuser_id, pushMessage)
+        val pushJson:JsValue = MakeJson.makePushJson(orderdata.user.get.lineuser_id, pushMessage)
         val replyJson:JsValue = MakeJson.makeReplyTextJson(repryToken, "[" + orderdata.contents + "]を完了しました！")
         (pushJson, replyJson)
       }

@@ -21,8 +21,8 @@ object MakeJson {
             "actions"-> Json.arr(
               Json.obj(
                 "type" -> "postback",
-                "label" -> "#通知する",
-                "data" -> ("action=notification&orderId=" + order_id)
+                "label" -> "通知する",
+                "data" -> ("action=notification&order_id=" + order_id)
               ),
               Json.obj(
                 "type"-> "message",
@@ -33,55 +33,60 @@ object MakeJson {
           )
         )
       )
-    Json.obj(
-      "replyToken" -> replyToken,
-      "messages" -> jsonMessages
-    )
+    TemplateJson.replyMessages(replyToken,jsonMessages)
   }
 
   //5件ずつデータが入ったカルーセルの配列を返す
-  def makeOrdersCarousels(orders: List[Order]): Seq[JsArray] = {
+  def makeOrdersCarousels(orders: List[Order]): Option[Seq[JsArray]] = {
     var count = 0
     var carousel: JsArray = Json.arr()
     var carousels = List[JsArray]()
     //5件までデータを入れたcarouselを作り、carouselsに入れる
     orders.foreach( { order =>
-      count += 1
-      if(count == 5){
-        carousels :+= carousel
-        carousel = Json.arr()
-        count = 0
-      }
-      carousel = carousel append Json.obj(
-        "thumbnailImageUrl" -> ConfigFactory.load.getString("THUMBNAIL_IMAGE_URL"),
-        "title" -> (order.user + "さんからのお願い"),
-        "text" -> order.contents,
-        "actions" -> Json.arr(
-          Json.obj(
-            "type" -> "postback",
-            "label" -> "完了",
-            "data" -> order.id
+      if(order.user.isDefined){
+        count += 1
+        if(count == 5){
+          carousels :+= carousel
+          carousel = Json.arr()
+          count = 0
+        }
+        carousel = carousel append Json.obj(
+          "thumbnailImageUrl" -> ConfigFactory.load.getString("THUMBNAIL_IMAGE_URL"),
+          "title" -> (order.user.get.name + "さんからのお願い"),
+          "text" -> order.contents,
+          "actions" -> Json.arr(
+            Json.obj(
+              "type" -> "postback",
+              "label" -> "完了",
+              "data" -> order.id
+            )
           )
         )
-      )
+      }
     })
     carousels :+= carousel
-    carousels
+    if(carousels == Seq(Json.arr())) None
+    else Option(carousels)
   }
 
-  def FromCarouselsToJsonOb(carousels: Seq[JsArray]): JsValue = {
-    var json:JsArray = Json.arr()
-    for(carousel <- carousels) {
-      json = json append Json.obj(
-        "type" -> "template",
-        "altText" -> "カルーセル一覧",
-        "template" -> Json.obj(
-          "type" -> "carousel",
-          "columns" -> carousel
-        )
-      )
+  def makeCarouselsJson(carousels: Option[Seq[JsArray]], altText:String): JsValue = {
+    carousels match {
+      case Some(carousels) => {
+        var json:JsArray = Json.arr()
+        for(carousel <- carousels) {
+          json = json append Json.obj(
+            "type" -> "template",
+            "altText" -> altText,
+            "template" -> Json.obj(
+              "type" -> "carousel",
+              "columns" -> carousel
+            )
+          )
+        }
+        json
+      }
+      case _ => TemplateJson.typeTextMessages(altText + "はありません！")
     }
-    json
   }
 
   def makeReplyTextJson(replyToken: String, replyMessage: String) = Json.obj(
@@ -90,13 +95,13 @@ object MakeJson {
   )
 
   //お願い内容をお願いした人以外のuser全員に通知するためのJsonを作成
-  def makeNotificationPushJson(pushUsers: List[User], pushMessage: String):JsValue =
+  def makePushJson(pushUsers: List[User], pushMessage: String):JsValue =
     Json.obj(
       "to" -> pushUsers.map(user => user.lineuser_id),
       "messages" -> TemplateJson.typeTextMessages(pushMessage)
     )
 
-  def makeCompleteNotificationPushJson(lineuser_id: String, pushMessage:String):JsValue =
+  def makePushJson(lineuser_id: String, pushMessage:String):JsValue =
     Json.obj(
       "to" -> lineuser_id,
       "messages" -> TemplateJson.typeTextMessages(pushMessage)
