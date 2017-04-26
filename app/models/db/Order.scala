@@ -18,6 +18,8 @@ object Order extends SQLSyntaxSupport[Order]{
 
   override val columns = Seq("id", "user_id", "contents", "endflag", "notificationflag", "created")
 
+  private val (o, u) = (Order.syntax("o"),User.syntax("u"))
+
   def apply(o: SyntaxProvider[Order])(rs: WrappedResultSet):Order = apply(o.resultName)(rs)
 
   def apply(o: ResultName[Order])(rs: WrappedResultSet): Order = new Order(
@@ -31,10 +33,9 @@ object Order extends SQLSyntaxSupport[Order]{
 
   // join query with user table
   def apply(o: SyntaxProvider[Order], u: SyntaxProvider[User])(rs: WrappedResultSet): Order = {
+    //user_idにひもづいたuserが存在していなかった場合、Noneを入れるようにしたいが方法がわからない。
     apply(o.resultName)(rs).copy(user = Some(User(u)(rs)))
   }
-
-  private val (o, u) = (Order.syntax("o"),User.syntax("u"))
 
   def find(id: Int)(implicit session: DBSession = autoSession) :Option[Order] =
     withSQL {

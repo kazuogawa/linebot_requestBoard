@@ -12,6 +12,7 @@ case class User(
 object User extends SQLSyntaxSupport[User]{
   override val tableName = "users"
   override val columns = Seq("id", "name", "lineuser_id")
+  private val u = User.syntax("u")
 
   def apply(u: SyntaxProvider[User])(rs: WrappedResultSet):User = apply(u.resultName)(rs)
   def apply(u: ResultName[User])(rs: WrappedResultSet): User = new User(
@@ -19,8 +20,6 @@ object User extends SQLSyntaxSupport[User]{
     name = rs.get(u.name),
     lineuser_id = rs.get(u.lineuser_id)
   )
-
-  val u = User.syntax("u")
 
   //user_idでの検索
   def find(id: Int)(implicit session:DBSession = autoSession): Option[User] = withSQL{
