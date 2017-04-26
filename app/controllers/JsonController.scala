@@ -76,23 +76,24 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
           throw new Exception("Jsonの形式が不正です。")
         },
         event => {
-          eventhandler(event)
+          //イベントに合わせた処理を実施
+          eventHandling(event)
           Ok("ok")
       }
     )
   }
 
-  //イベントの内容によって処理を分割する
-  def eventhandler(event:Event) =
+  def eventHandling(event: Event) = {
     event.e_type match{
-      case "follow" => follow(event.source.lineuser_id)
+      case "follow" => followHandling(event.source.lineuser_id)
       case "unfollow" => //友達登録解除された際の処理はなし
-      case "message" => messagehandler(event)
-      case "postback" => postbackhandler(event)
+      case "message" => messageHandling(event)
+      case "postback" => postbackHandling(event)
       case _ => throw new Exception("eventhandler関数のeventは不正な値です")
     }
+  }
 
-  def follow(lineuser_id: String) = {
+  def followHandling(lineuser_id: String) = {
     //名前が登録されていなかった場合、登録の処理
     val user = User.findByLineuser_id(lineuser_id)
     if(user.isEmpty){
@@ -102,8 +103,8 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
     }
   }
 
-  //messageの内容によってjsonの処理を変え、返信する
-  def messagehandler(event:Event) ={
+  //messageのテキスト内容によって処理を変え、返信する
+  def messageHandling(event:Event) ={
     val json = if(event.message.text == "") MakeJson.makeReplyTextJson(event.replyToken, "お願いはテキストで記述してください。")
     else event.message.text match {
       case "#使い方" => MakeJson.makeReplyTextJson(event.replyToken, ConfigFactory.load.getString("HOWTO_TEXT"))
@@ -112,10 +113,10 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
       //上記以外の場合は登録する仕組みになっているため、セキュリティホールの可能性が高い。適切な分岐方法があれば修整。
       case _ => GetJson.addOrder(event)
     }
-    val result = postLineApi(json,"reply")
+    val result = postJsonOnLineApi(json,"reply")
   }
 
-  def postbackhandler(event: Event) = {
+  def postbackHandling(event: Event) = {
     //event.postback.dataは[action=notification&order_id=1]の形]
     //いいパーサーが見つかればそれに置き換えたい。。
     event.postback.data match {
@@ -137,10 +138,10 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
           case "complete" => GetJson.complete(event.replyToken,id)
           case _ => (null, MakeJson.makeReplyTextJson(event.replyToken, "エラーが発生しました。処理を正常に完了させることができませんでした。"))
         }
-        postLineApi(replyJson, "reply")
-        postLineApi(pushJson, "push")
+        postJsonOnLineApi(replyJson, "reply")
+        postJsonOnLineApi(pushJson, "push")
       }
-      case _ => postLineApi(MakeJson.makeReplyTextJson(event.replyToken, "エラーが発生しました。処理を正常に完了させることができませんでした。"), "reply")
+      case _ => postJsonOnLineApi(MakeJson.makeReplyTextJson(event.replyToken, "エラーが発生しました。処理を正常に完了させることができませんでした。"), "reply")
     }
   }
 
@@ -155,7 +156,7 @@ class JsonController @Inject() (ws: WSClient, db:Database) extends Controller{
   }
 
   //渡されたjsonをLineApiにpost
-  def postLineApi(json: JsValue, url_kind: String): Unit =
+  def postJsonOnLineApi(json: JsValue, url_kind: String): Unit =
     if(json != null) {
       val req = url_kind match {
         case "reply" => ws.url("https://api.line.me/v2/bot/message/reply")
