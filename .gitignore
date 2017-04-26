@@ -16,7 +16,3 @@ conf/test.conf
 
 #fixture作成次第解除
 conf/db/
-
-#UnitTest作成次第解除
-test/controllers/
-test/models/
