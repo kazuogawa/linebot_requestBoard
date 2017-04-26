@@ -58,7 +58,7 @@ object MakeJson {
             Json.obj(
               "type" -> "postback",
               "label" -> "完了",
-              "data" -> order.id
+              "data" -> ("action=notification&order_id=" + order.id)
             )
           )
         )
