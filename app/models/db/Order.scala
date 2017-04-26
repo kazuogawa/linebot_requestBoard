@@ -3,7 +3,6 @@ package models.db
 import org.joda.time.DateTime
 import scalikejdbc._
 
-
 case class Order(
   id:Int,
   user_id: Int,

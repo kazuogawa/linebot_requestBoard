@@ -1,4 +1,5 @@
 package models.db
+
 import org.joda.time.DateTime
 import scalikejdbc._
 

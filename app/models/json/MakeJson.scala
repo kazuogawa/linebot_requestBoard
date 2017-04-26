@@ -1,8 +1,8 @@
 package models.json
 
 import com.typesafe.config.ConfigFactory
-import play.api.libs.json.{JsArray, JsValue, Json}
 import models.db._
+import play.api.libs.json.{JsArray, JsValue, Json}
 
 object MakeJson {
   def makeAddOrderReplyJson(replyToken: String, replyMessage: String, order_id: Int): JsValue = {

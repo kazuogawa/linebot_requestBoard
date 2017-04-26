@@ -1,6 +1,7 @@
 package models.db
 
 import scalikejdbc._
+
 case class User(
   id: Int,
   name: String,
