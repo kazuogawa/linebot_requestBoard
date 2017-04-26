@@ -2,7 +2,6 @@ package controllers
 
 import com.typesafe.config.ConfigFactory
 import javax.inject.Inject
-
 import models._
 import models.db._
 import models.json._
@@ -11,7 +10,6 @@ import play.api.db._
 import play.api.libs.json._
 import play.api.libs.functional.syntax._
 import play.api.libs.ws._
-
 import scala.concurrent._
 import scala.concurrent.duration.Duration
 
