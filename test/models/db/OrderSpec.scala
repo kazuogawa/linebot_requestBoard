@@ -1,11 +1,9 @@
-package models
+package models.db
 
-import models.db._
 import org.specs2.mutable._
-import scalikejdbc.DBSession
-import settings.TestDBSettings
 import scalikejdbc._
 import scalikejdbc.specs2.mutable.AutoRollback
+import settings.TestDBSettings
 
 class OrderSpec extends Specification with TestDBSettings{
 
@@ -34,19 +32,25 @@ class OrderSpec extends Specification with TestDBSettings{
       val findOrder = Order.find(0)
       findOrder.isEmpty should beTrue
     }
-    "find with username" in new AutoRollbackWithFixture{
+    "relation with User model" in new AutoRollbackWithFixture{
       val findId = Order.findTodayOrders.head.id
       val findOrder = Order.find(findId)
       findOrder.get.user.get.name should_== ("testuser1")
     }
 
-    "find all records" in new AutoRollbackWithFixture{
+    "findTodayOrders" in new AutoRollbackWithFixture{
       val user2 = User.create("testuser2","lineuser_id2")
       Order.create(user2.id,"TestOrder2")
       val user3 = User.create("testuser3","lineuser_id3")
       Order.create(user3.id,"TestOrder3")
       val orders = Order.findTodayOrders
       orders.size should_== (3)
+    }
+
+    "updateEndflagTrue" in new AutoRollbackWithFixture {
+      val orderId = Order.findTodayOrders().head.id
+      val order = Order.updateEndflagTrue(orderId)
+      Order.find(orderId).get.endflag should beTrue
     }
   }
 }

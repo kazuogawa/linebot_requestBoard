@@ -1,10 +1,6 @@
-package models
+package models.db
 
-import models.db.Complete
-import org.scalatestplus.play.PlaySpec
 import org.specs2.mutable._
-import scalikejdbc.specs2.mutable.AutoRollback
-import scalikejdbc.config._
 import settings.TestDBSettings
 
 class CompleteSpec extends Specification with TestDBSettings{
